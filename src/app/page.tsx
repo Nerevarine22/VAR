@@ -19,6 +19,52 @@ type FdvMarket = {
   url: string;
 };
 
+type OmniTrade = {
+  id: string;
+  createdAt: string;
+  side: string;
+  instrumentType: string;
+  underlying: string;
+  price: number;
+  qty: number;
+  status: string;
+};
+
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let value = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"' && line[i + 1] === '"') { value += '"'; i += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { values.push(value.trim()); value = ""; }
+    else value += char;
+  }
+  values.push(value.trim());
+  return values;
+}
+
+function parseOmniCsv(text: string): OmniTrade[] {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+  const index = (name: string) => headers.indexOf(name);
+  return lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line);
+    return {
+      id: cells[index("id")] || crypto.randomUUID(),
+      createdAt: cells[index("created_at")] || "",
+      side: cells[index("side")] || "unknown",
+      instrumentType: cells[index("instrument_type")] || "",
+      underlying: cells[index("underlying")] || "",
+      price: Number(cells[index("price")]) || 0,
+      qty: Number(cells[index("qty")]) || 0,
+      status: cells[index("status")] || "",
+    };
+  }).filter((trade) => trade.createdAt && trade.qty > 0);
+}
+
 function formatNumber(value: number, digits = 0) {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: digits,
@@ -204,6 +250,9 @@ export default function Home() {
   const [fdvMarkets, setFdvMarkets] = useState<FdvMarket[]>(DEFAULT_FDV_MARKETS);
   const [marketStatus, setMarketStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const [duneData, setDuneData] = useState<any>(null);
+  const [omniTrades, setOmniTrades] = useState<OmniTrade[]>([]);
+  const [tradeFileName, setTradeFileName] = useState("");
+  const [tradeImportError, setTradeImportError] = useState("");
 
   const [isMounted, setIsMounted] = useState(false);
   const [runTour, setRunTour] = useState(false);
@@ -442,6 +491,55 @@ export default function Home() {
     };
   }, [fdvMarkets]);
 
+  const traderStats = useMemo(() => {
+    const volume = omniTrades.reduce((sum, trade) => sum + Math.abs(trade.price * trade.qty), 0);
+    const buys = omniTrades.filter((trade) => trade.side.toLowerCase() === "buy").length;
+    const sells = omniTrades.filter((trade) => trade.side.toLowerCase() === "sell").length;
+    const quantities = omniTrades.reduce((sum, trade) => sum + Math.abs(trade.qty), 0);
+    const markets = new Set(omniTrades.map((trade) => trade.underlying).filter(Boolean));
+    const first = omniTrades.at(-1)?.createdAt;
+    const last = omniTrades[0]?.createdAt;
+    const points = parsePositive(userPoints);
+    const rangeMs = first && last ? Math.max(0, Date.parse(last) - Date.parse(first)) : 0;
+    const weeksTraded = omniTrades.length ? Math.max(1, Math.ceil(rangeMs / (7 * 24 * 60 * 60 * 1000))) : 0;
+    return {
+      volume, buys, sells, quantities, markets: markets.size,
+      volumePerPoint: points > 0 ? volume / points : 0,
+      weeksTraded,
+      first, last,
+    };
+  }, [omniTrades, userPoints]);
+
+  const tokenStats = useMemo(() => {
+    const grouped = new Map<string, { trades: number; volume: number; quantity: number }>();
+    omniTrades.forEach((trade) => {
+      const key = trade.underlying || "Unknown";
+      const current = grouped.get(key) ?? { trades: 0, volume: 0, quantity: 0 };
+      current.trades += 1;
+      current.volume += Math.abs(trade.price * trade.qty);
+      current.quantity += Math.abs(trade.qty);
+      grouped.set(key, current);
+    });
+    return [...grouped.entries()].map(([token, data]) => ({ token, ...data }))
+      .sort((a, b) => b.volume - a.volume);
+  }, [omniTrades]);
+
+  const handleTradeFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setTradeImportError("");
+    try {
+      const trades = parseOmniCsv(await file.text());
+      if (!trades.length) throw new Error("No valid trades found in this CSV");
+      setOmniTrades(trades.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)));
+      setTradeFileName(file.name);
+    } catch (error) {
+      setOmniTrades([]);
+      setTradeFileName("");
+      setTradeImportError(error instanceof Error ? error.message : "Could not read CSV file");
+    }
+  };
+
   const handleWalletLookup = async () => {
     const query = searchAddress.trim().toLowerCase();
     if (!query) return;
@@ -494,7 +592,7 @@ export default function Home() {
 
   const isDuneActive = duneData && duneData.duneActive === true;
   const hasLeaderboard = isDuneActive && duneData.leaderboard && duneData.leaderboard.length > 0;
-  const activeTab = "estimator";
+  const activeTab = tab;
 
   return (
     <>
@@ -642,6 +740,7 @@ export default function Home() {
         </header>
 
         {activeTab === "estimator" ? (
+          <>
           <div className="flex flex-col gap-6 w-full animate-slide-fade-in">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full items-stretch">
 
@@ -1106,8 +1205,83 @@ export default function Home() {
           </div>
 
 
+        <section className="mt-6 rounded-xl border border-[#1E2026] bg-[#050507]/40 p-5">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#94A3B8]">Trader statistics</h2>
+              <p className="mt-1 text-[10px] text-[#64748B]">Upload an Omni CSV. Volume per point uses the Your Points field above.</p>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="inline-flex h-9 cursor-pointer items-center rounded-lg bg-[#4C9AF8] px-3 text-[9px] font-bold uppercase tracking-wider text-white hover:bg-[#3b8ae8]">{omniTrades.length ? "Replace CSV" : "Upload CSV"}<input type="file" accept=".csv,text/csv" className="hidden" onChange={handleTradeFile} /></label>
+            </div>
+          </div>
+          {tradeImportError && <p className="mt-3 text-[10px] text-red-400">{tradeImportError}</p>}
+        </section>
+
+        {omniTrades.length > 0 && (
+          <section className="mt-6 rounded-xl border border-[#1E2026] bg-gradient-to-br from-[#0C0D11] to-[#050507] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#94A3B8]">Trader statistics</h2><p className="mt-1 text-[10px] text-[#64748B]">{tradeFileName} · {omniTrades.length} confirmed trades</p></div>
+              <span className="rounded-full border border-[#4C9AF8]/20 bg-[#4C9AF8]/5 px-2.5 py-1 font-mono text-[9px] text-[#4C9AF8]">LOCAL ANALYSIS</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+              {[
+                ["Total volume", formatUsd(traderStats.volume)],
+                ["Volume / point", traderStats.volumePerPoint > 0 ? formatUsd(traderStats.volumePerPoint) : "—"],
+                ["Trades", formatNumber(omniTrades.length)],
+                ["Markets", formatNumber(traderStats.markets)],
+                ["Buy / Sell", `${traderStats.buys} / ${traderStats.sells}`],
+                ["Contracts", formatNumber(traderStats.quantities, 2)],
+                ["Weeks traded", `${traderStats.weeksTraded} wk`],
+              ].map(([label, value], index) => <div key={label} className={`rounded-lg border border-[#1E2026] bg-[#121318]/70 p-3 ${index < 2 ? "border-[#4C9AF8]/20" : ""}`}><span className="block text-[8px] font-bold uppercase tracking-wider text-[#64748B]">{label}</span><span className={`mt-1 block truncate font-mono text-sm font-bold ${index < 2 ? "text-[#4C9AF8]" : "text-[#CBD5E1]"}`}>{value}</span></div>)}
+            </div>
+            <div className="mt-5 border-t border-[#1E2026] pt-4">
+              <div className="mb-3 flex items-center justify-between"><div><h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#94A3B8]">Token activity</h3><p className="mt-1 text-[9px] text-[#64748B]">Where your trading volume is concentrated</p></div><span className="font-mono text-[9px] text-[#64748B]">{tokenStats.length} assets</span></div>
+              {tokenStats[0] && <div className="mb-2 rounded-xl border border-[#4C9AF8]/30 bg-[#4C9AF8]/[0.07] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-[8px] font-bold uppercase tracking-[0.16em] text-[#4C9AF8]">Top traded asset</span><h4 className="mt-1 font-mono text-xl font-bold text-white">{tokenStats[0].token}</h4></div><span className="rounded-full bg-[#4C9AF8] px-2 py-1 text-[9px] font-bold text-white">{tokenStats[0].trades} trades</span></div>
+                <div className="mt-4 flex items-end justify-between"><div><span className="block text-[8px] font-bold uppercase tracking-wider text-[#94A3B8]">Notional volume</span><span className="font-mono text-2xl font-bold text-[#4C9AF8]">{formatUsd(tokenStats[0].volume)}</span></div><div className="text-right"><span className="block text-[8px] font-bold uppercase tracking-wider text-[#94A3B8]">Portfolio share</span><span className="font-mono text-lg font-bold text-white">{traderStats.volume ? `${((tokenStats[0].volume / traderStats.volume) * 100).toFixed(1)}%` : "—"}</span></div></div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#050507]/60"><div className="h-full rounded-full bg-[#4C9AF8]" style={{ width: `${traderStats.volume ? Math.max(2, (tokenStats[0].volume / traderStats.volume) * 100) : 0}%` }} /></div>
+              </div>}
+              {tokenStats.length > 1 && <div className="divide-y divide-[#1E2026] rounded-xl border border-[#1E2026] bg-[#121318]/40">{tokenStats.slice(1).map((item) => <div key={item.token} className="flex items-center gap-3 px-3 py-2.5"><span className="w-24 truncate font-mono text-xs font-bold text-[#CBD5E1]">{item.token}</span><div className="flex-1"><div className="h-1 overflow-hidden rounded-full bg-[#1E2026]"><div className="h-full rounded-full bg-[#4C9AF8]/60" style={{ width: `${traderStats.volume ? Math.max(2, (item.volume / traderStats.volume) * 100) : 0}%` }} /></div></div><span className="w-20 text-right font-mono text-[10px] font-bold text-white">{formatUsd(item.volume)}</span><span className="w-12 text-right font-mono text-[9px] text-[#64748B]">{item.trades} tx</span></div>)}</div>}
+            </div>
+          </section>
+        )}
+
+        </>
         ) : (
           <div className="flex flex-col gap-12 animate-fade-in">
+            <section className="rounded-xl border border-[#1E2026] bg-[#050507]/40 p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#94A3B8]">Import Omni trades</h2>
+                  <p className="mt-1 text-xs text-[#64748B]">Upload the CSV exported from Omni. Processing happens locally in your browser.</p>
+                </div>
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-[#4C9AF8] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-white transition hover:bg-[#3b8ae8]">
+                  {omniTrades.length ? "Replace CSV" : "Choose CSV file"}
+                  <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleTradeFile} />
+                </label>
+              </div>
+              {tradeFileName && <p className="mt-3 font-mono text-[10px] text-[#4C9AF8]">{tradeFileName} · {omniTrades.length} trades loaded</p>}
+              {tradeImportError && <p className="mt-3 text-xs text-red-400">{tradeImportError}</p>}
+            </section>
+
+            {omniTrades.length > 0 && (
+              <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  ["Total volume", formatUsd(traderStats.volume)],
+                  ["Trades", formatNumber(omniTrades.length)],
+                  ["Markets", formatNumber(traderStats.markets)],
+                  ["Buy / Sell", `${traderStats.buys} / ${traderStats.sells}`],
+                  ["Volume / point", traderStats.volumePerPoint > 0 ? formatUsd(traderStats.volumePerPoint, ) : "—"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-[#050507]/40 p-4">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#64748B]">{label}</span>
+                    <div className="mt-2 font-mono text-lg font-bold text-white">{value}</div>
+                  </div>
+                ))}
+              </section>
+            )}
+
             {/* STATS OVERVIEW CARDS */}
             <div className={`grid gap-6 ${isDuneActive ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"}`}>
               <div className="bg-[#050507]/40 p-6 rounded-xl">
@@ -1299,6 +1473,27 @@ export default function Home() {
                 )}
               </div>
             </div>
+
+            {omniTrades.length > 0 && (
+              <section className="rounded-xl bg-[#050507]/20 p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#94A3B8]">Recent trades</h3>
+                    <p className="mt-1 text-xs text-[#64748B]">Latest rows from your Omni export.</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-left text-[10px] font-mono">
+                    <thead className="border-b border-[#1E2026] text-[#64748B]"><tr><th className="pb-2">Time</th><th className="pb-2">Market</th><th className="pb-2">Side</th><th className="pb-2 text-right">Price</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Notional</th></tr></thead>
+                    <tbody className="divide-y divide-[#1E2026]/50">
+                      {omniTrades.slice(0, 12).map((trade) => (
+                        <tr key={trade.id} className="text-[#CBD5E1]"><td className="py-2 text-[#64748B]">{new Date(trade.createdAt).toLocaleString()}</td><td className="py-2">{trade.underlying}</td><td className={`py-2 uppercase ${trade.side.toLowerCase() === "buy" ? "text-emerald-400" : "text-orange-300"}`}>{trade.side}</td><td className="py-2 text-right">{trade.price.toFixed(4)}</td><td className="py-2 text-right">{formatNumber(trade.qty, 2)}</td><td className="py-2 text-right text-white">{formatUsd(trade.price * trade.qty)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
           </div>
         )}
 
