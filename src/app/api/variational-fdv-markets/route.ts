@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 const HEISENBERG_URL = "https://narrative.agent.heisenberg.so/api/v2/semantic/retrieve/parameterized";
 const EVENT_SLUG = "variational-fdv-above-one-day-after-launch";
 const GAMMA_EVENT_URL = `https://gamma-api.polymarket.com/events?slug=${EVENT_SLUG}`;
-const MIN_FDV = 500_000_000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 type FdvMarket = {
@@ -91,9 +90,7 @@ function marketUrl(slug: string) {
 }
 
 function sortAndFilterMarkets(markets: FdvMarket[]) {
-  return markets
-    .filter((market) => market.fdv >= MIN_FDV)
-    .sort((a, b) => a.fdv - b.fdv);
+  return markets.sort((a, b) => a.fdv - b.fdv);
 }
 
 async function fetchGammaMarkets() {

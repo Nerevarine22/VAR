@@ -8,7 +8,7 @@ import { toPng } from "html-to-image";
 const TOTAL_SUPPLY = 1_000_000_000;
 const DISTRIBUTED_POINTS = 9_100_000;
 const DEFAULT_TOTAL_POINTS = "9 250 000";
-const fdvOptions = [500_000_000, 800_000_000, 1_000_000_000, 2_000_000_000, 3_000_000_000, 4_000_000_000, 5_000_000_000];
+const fdvOptions = [100_000_000, 200_000_000, 300_000_000, 500_000_000, 800_000_000, 1_000_000_000, 2_000_000_000, 3_000_000_000, 4_000_000_000, 5_000_000_000];
 const AIRDROP_POOL_PCT = 32;
 
 type FdvMarket = {
@@ -234,23 +234,25 @@ const CustomTooltip = ({
 };
 
 const DEFAULT_FDV_MARKETS: FdvMarket[] = [
-  { conditionId: "1", question: "Variational FDV > $500M", slug: "500m", fdv: 500_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "2", question: "Variational FDV > $800M", slug: "800m", fdv: 800_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "3", question: "Variational FDV > $1B", slug: "1b", fdv: 1_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "4", question: "Variational FDV > $2B", slug: "2b", fdv: 2_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "5", question: "Variational FDV > $3B", slug: "3b", fdv: 3_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "6", question: "Variational FDV > $4B", slug: "4b", fdv: 4_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "7", question: "Variational FDV > $5B", slug: "5b", fdv: 5_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "1", question: "Variational FDV > $100M", slug: "100m", fdv: 100_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "2", question: "Variational FDV > $200M", slug: "200m", fdv: 200_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "3", question: "Variational FDV > $300M", slug: "300m", fdv: 300_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "4", question: "Variational FDV > $500M", slug: "500m", fdv: 500_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "5", question: "Variational FDV > $800M", slug: "800m", fdv: 800_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "6", question: "Variational FDV > $1B", slug: "1b", fdv: 1_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "7", question: "Variational FDV > $2B", slug: "2b", fdv: 2_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "8", question: "Variational FDV > $3B", slug: "3b", fdv: 3_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "9", question: "Variational FDV > $4B", slug: "4b", fdv: 4_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "10", question: "Variational FDV > $5B", slug: "5b", fdv: 5_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
 ];
 
 function mergeFdvMarkets(markets: FdvMarket[]) {
-  const visibleMarkets = markets.filter((market) => market.fdv >= 500_000_000);
-  const marketsByFdv = new Map(visibleMarkets.map((market) => [market.fdv, market]));
+  const marketsByFdv = new Map(markets.map((market) => [market.fdv, market]));
   const knownFdv = new Set(DEFAULT_FDV_MARKETS.map((market) => market.fdv));
 
   return [
     ...DEFAULT_FDV_MARKETS.map((market) => marketsByFdv.get(market.fdv) ?? market),
-    ...visibleMarkets.filter((market) => !knownFdv.has(market.fdv)),
+    ...markets.filter((market) => !knownFdv.has(market.fdv)),
   ].sort((a, b) => a.fdv - b.fdv);
 }
 
@@ -945,14 +947,14 @@ export default function Home() {
               </div>
 
               {/* TABLE BLOCK: COMPACT TABLE WITH POLYMARKET ODDS */}
-              <div className="bg-[#050507]/40 rounded-xl flex-1 flex flex-col overflow-hidden">
+              <div className="h-[384px] shrink-0 bg-[#050507]/40 rounded-xl flex flex-col overflow-hidden">
                 <div className="px-4 py-3 border-b border-[#1E2026] flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]" id="tour-fdv">FDV Scenarios Grid</span>
                   <span className="text-[8px] text-[#64748B] font-mono">Click rows to switch scenario</span>
                 </div>
-                <div className="flex-1 overflow-y-auto overflow-x-auto">
+                <div className="fdv-market-scrollbar flex-1 overflow-y-auto overflow-x-auto">
                   <table className="w-full border-collapse text-left text-[10px] sm:text-[11px]">
-                    <thead className="border-b border-[#1E2026] bg-[#121318]/40 text-[#64748B]">
+                    <thead className="sticky top-0 z-10 border-b border-[#1E2026] bg-[#0C0D11] text-[#64748B]">
                       <tr>
                         <th className="px-2 sm:px-3 py-2 font-bold uppercase tracking-wider w-8 sm:w-10 text-center">Select</th>
                         <th className="px-2 sm:px-3 py-2 font-bold uppercase tracking-wider">FDV</th>

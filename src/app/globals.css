@@ -38,6 +38,31 @@ body {
 
 button, input { font: inherit; }
 
+.fdv-market-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) var(--bg-card);
+}
+
+.fdv-market-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.fdv-market-scrollbar::-webkit-scrollbar-track {
+  background: var(--bg-card);
+  border-radius: 999px;
+}
+
+.fdv-market-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border: 2px solid var(--bg-card);
+  border-radius: 999px;
+}
+
+.fdv-market-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #78b4ff;
+}
+
 @utility animate-slide-fade-in {
   animation: slideFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
