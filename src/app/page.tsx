@@ -6,8 +6,10 @@ import { Joyride, Step, STATUS } from "react-joyride";
 import { toPng } from "html-to-image";
 
 const TOTAL_SUPPLY = 1_000_000_000;
-const fdvOptions = [100_000_000, 200_000_000, 300_000_000, 500_000_000, 800_000_000, 1_000_000_000, 2_000_000_000];
-const airdropOptions = [30, 35, 40, 45, 50];
+const DISTRIBUTED_POINTS = 9_100_000;
+const DEFAULT_TOTAL_POINTS = "9 250 000";
+const fdvOptions = [500_000_000, 800_000_000, 1_000_000_000, 2_000_000_000, 3_000_000_000, 4_000_000_000, 5_000_000_000];
+const AIRDROP_POOL_PCT = 32;
 
 type FdvMarket = {
   conditionId: string;
@@ -232,20 +234,31 @@ const CustomTooltip = ({
 };
 
 const DEFAULT_FDV_MARKETS: FdvMarket[] = [
-  { conditionId: "1", question: "Variational FDV > $100M", slug: "100m", fdv: 100_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "2", question: "Variational FDV > $200M", slug: "200m", fdv: 200_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "3", question: "Variational FDV > $300M", slug: "300m", fdv: 300_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "4", question: "Variational FDV > $500M", slug: "500m", fdv: 500_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "5", question: "Variational FDV > $800M", slug: "800m", fdv: 800_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "6", question: "Variational FDV > $1B", slug: "1b", fdv: 1_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
-  { conditionId: "7", question: "Variational FDV > $2B", slug: "2b", fdv: 2_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "1", question: "Variational FDV > $500M", slug: "500m", fdv: 500_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "2", question: "Variational FDV > $800M", slug: "800m", fdv: 800_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "3", question: "Variational FDV > $1B", slug: "1b", fdv: 1_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "4", question: "Variational FDV > $2B", slug: "2b", fdv: 2_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "5", question: "Variational FDV > $3B", slug: "3b", fdv: 3_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "6", question: "Variational FDV > $4B", slug: "4b", fdv: 4_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
+  { conditionId: "7", question: "Variational FDV > $5B", slug: "5b", fdv: 5_000_000_000, volumeTotal: 0, yesChance: null, url: "https://polymarket.com/event/variational-fdv-above-one-day-after-launch" },
 ];
+
+function mergeFdvMarkets(markets: FdvMarket[]) {
+  const visibleMarkets = markets.filter((market) => market.fdv >= 500_000_000);
+  const marketsByFdv = new Map(visibleMarkets.map((market) => [market.fdv, market]));
+  const knownFdv = new Set(DEFAULT_FDV_MARKETS.map((market) => market.fdv));
+
+  return [
+    ...DEFAULT_FDV_MARKETS.map((market) => marketsByFdv.get(market.fdv) ?? market),
+    ...visibleMarkets.filter((market) => !knownFdv.has(market.fdv)),
+  ].sort((a, b) => a.fdv - b.fdv);
+}
 
 export default function Home() {
   const [tab, setTab] = useState<"estimator" | "stats">("estimator");
-  const [totalPoints, setTotalPoints] = useState("9 000 000");
+  const [totalPoints, setTotalPoints] = useState(DEFAULT_TOTAL_POINTS);
   const [userPoints, setUserPoints] = useState("");
-  const [airdropPct, setAirdropPct] = useState(40);
+  const airdropPct = AIRDROP_POOL_PCT;
   const [fdv, setFdv] = useState(500_000_000);
   const [fdvMarkets, setFdvMarkets] = useState<FdvMarket[]>(DEFAULT_FDV_MARKETS);
   const [marketStatus, setMarketStatus] = useState<"loading" | "ready" | "unavailable">("loading");
@@ -281,7 +294,7 @@ export default function Home() {
     },
     {
       target: '#tour-pool-size',
-      content: 'Select the expected Airdrop Pool Size. Note: the official project docs mention an allocation of up to 50%.',
+      content: 'The Airdrop Pool Size is set to 32%.',
       disableBeacon: true,
       placement: 'auto'
     },
@@ -397,7 +410,7 @@ export default function Home() {
         if (!response.ok) throw new Error("market-fetch-failed");
 
         const payload = await response.json();
-        const markets = (payload.markets ?? []) as FdvMarket[];
+        const markets = mergeFdvMarkets((payload.markets ?? []) as FdvMarket[]);
 
         if (!ignore && markets.length > 0) {
           setFdvMarkets(markets);
@@ -797,23 +810,17 @@ export default function Home() {
                   />
                 </div>
 
-                {/* AIRDROP SUPPLY BUTTONS */}
+                {/* FIXED AIRDROP SUPPLY */}
                 <div className="flex flex-col gap-1" id="tour-pool-size">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Airdrop Pool Size</span>
-                  <div className="grid grid-cols-5 gap-1 mt-1">
-                    {airdropOptions.map((option) => (
-                      <button
-                        key={option}
-                        className={`h-7 rounded-md text-[10px] font-bold transition flex items-center justify-center cursor-pointer ${
-                          option === airdropPct
-                            ? "bg-[#4C9AF8] text-white font-extrabold"
-                            : "bg-[#0C0D11] text-[#94A3B8] hover:bg-[#1E2026] hover:text-white"
-                        }`}
-                        onClick={() => setAirdropPct(option)}
-                      >
-                        {option}%
-                      </button>
-                    ))}
+                  <div className="mt-1 flex">
+                    <button
+                      type="button"
+                      className="h-7 w-full rounded-md border border-[#4C9AF8] bg-transparent px-3 text-[10px] font-sans font-extrabold text-[#4C9AF8]"
+                      aria-label="Airdrop Pool Size: 32%"
+                    >
+                      {airdropPct}%
+                    </button>
                   </div>
                 </div>
 
@@ -1171,14 +1178,14 @@ export default function Home() {
                 <div className="flex flex-col">
                   <span className="text-[8px] font-bold tracking-wider text-[#64748B] uppercase">Points Distributed</span>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono text-sm sm:text-base font-bold text-white">8,100,000</span>
+                    <span className="font-mono text-sm sm:text-base font-bold text-white">{formatNumber(DISTRIBUTED_POINTS)}</span>
                     <span className="text-[8px] text-[#64748B] font-mono">/ {formatNumber(parsePositive(totalPoints))}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-[8px] font-bold tracking-wider text-[#64748B] uppercase">Remaining</span>
                   <span className="font-mono text-sm sm:text-base font-bold text-[#4C9AF8]">
-                    {formatNumber(Math.max(0, parsePositive(totalPoints) - 8100000))}
+                    {formatNumber(Math.max(0, parsePositive(totalPoints) - DISTRIBUTED_POINTS))}
                   </span>
                 </div>
               </div>
@@ -1186,7 +1193,7 @@ export default function Home() {
               <div className="relative w-full h-[2px] bg-[#121318] rounded-full overflow-hidden">
                 <div 
                   className="absolute top-0 left-0 h-full bg-[#4C9AF8] transition-all duration-1000 ease-out"
-                  style={{ width: `${Math.min(100, (8100000 / Math.max(1, parsePositive(totalPoints))) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (DISTRIBUTED_POINTS / Math.max(1, parsePositive(totalPoints))) * 100)}%` }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/20" />
                 </div>
@@ -1194,29 +1201,15 @@ export default function Home() {
 
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-mono text-[#64748B]">
-                  ~{formatUsd((8100000 / Math.max(1, parsePositive(totalPoints))) * results.airdropSupply * results.tokenPrice)}
+                  ~{formatUsd((DISTRIBUTED_POINTS / Math.max(1, parsePositive(totalPoints))) * results.airdropSupply * results.tokenPrice)}
                 </span>
                 <span className="text-[9px] font-mono text-[#4C9AF8]/70">
-                  ~{formatUsd((Math.max(0, parsePositive(totalPoints) - 8100000) / Math.max(1, parsePositive(totalPoints))) * results.airdropSupply * results.tokenPrice)}
+                  ~{formatUsd((Math.max(0, parsePositive(totalPoints) - DISTRIBUTED_POINTS) / Math.max(1, parsePositive(totalPoints))) * results.airdropSupply * results.tokenPrice)}
                 </span>
               </div>
             </div>
 
           </div>
-
-
-        <section className="mt-6 rounded-xl border border-[#1E2026] bg-[#050507]/40 p-5">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#94A3B8]">Trader statistics</h2>
-              <p className="mt-1 text-[10px] text-[#64748B]">Upload an Omni CSV. Volume per point uses the Your Points field above.</p>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="inline-flex h-9 cursor-pointer items-center rounded-lg bg-[#4C9AF8] px-3 text-[9px] font-bold uppercase tracking-wider text-white hover:bg-[#3b8ae8]">{omniTrades.length ? "Replace CSV" : "Upload CSV"}<input type="file" accept=".csv,text/csv" className="hidden" onChange={handleTradeFile} /></label>
-            </div>
-          </div>
-          {tradeImportError && <p className="mt-3 text-[10px] text-red-400">{tradeImportError}</p>}
-        </section>
 
         {omniTrades.length > 0 && (
           <section className="mt-6 rounded-xl border border-[#1E2026] bg-gradient-to-br from-[#0C0D11] to-[#050507] p-5 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">

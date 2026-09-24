@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 const HEISENBERG_URL = "https://narrative.agent.heisenberg.so/api/v2/semantic/retrieve/parameterized";
-const GAMMA_EVENT_URL = "https://gamma-api.polymarket.com/events/slug/variational-fdv-above-one-day-after-launch";
 const EVENT_SLUG = "variational-fdv-above-one-day-after-launch";
-const MAX_FDV = 2_000_000_000;
+const GAMMA_EVENT_URL = `https://gamma-api.polymarket.com/events?slug=${EVENT_SLUG}`;
+const MIN_FDV = 500_000_000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 type FdvMarket = {
@@ -92,7 +92,7 @@ function marketUrl(slug: string) {
 
 function sortAndFilterMarkets(markets: FdvMarket[]) {
   return markets
-    .filter((market) => market.fdv <= MAX_FDV)
+    .filter((market) => market.fdv >= MIN_FDV)
     .sort((a, b) => a.fdv - b.fdv);
 }
 
@@ -105,7 +105,10 @@ async function fetchGammaMarkets() {
 
   if (!response.ok) throw new Error("gamma-fetch-failed");
 
-  const event = await response.json();
+  const eventPayload = await response.json();
+  // The documented Gamma endpoint returns an array when queried by slug.
+  // Keep accepting an object as well in case Polymarket changes that shape.
+  const event = Array.isArray(eventPayload) ? eventPayload[0] : eventPayload;
   const markets = (event?.markets ?? []) as GammaMarket[];
 
   const normalized: FdvMarket[] = [];
